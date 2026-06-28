@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { subscribeBookings, createBooking, cancelBooking as cancelBookingDb } from './db';
 import './App.css';
 
 const MY_QRIS_IMAGE_URL = "/my-qris.jpeg";
@@ -45,10 +46,7 @@ export default function App() {
   // ========== STATES ==========
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedSlots, setSelectedSlots] = useState([]);
-  const [bookings, setBookings] = useState(() => {
-    const saved = localStorage.getItem('ps_bookings_v3');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [bookings, setBookings] = useState([]);
   
   const [pendingBooking, setPendingBooking] = useState(null);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
@@ -72,10 +70,13 @@ export default function App() {
   const [activeNav, setActiveNav] = useState('hero');
   const [particles, setParticles] = useState([]);
 
-  // ========== SYNC LOCAL STORAGE ==========
+  // ========== FIRESTORE REAL-TIME SYNC ==========
   useEffect(() => {
-    localStorage.setItem('ps_bookings_v3', JSON.stringify(bookings));
-  }, [bookings]);
+    const unsub = subscribeBookings((data) => {
+      setBookings(data);
+    });
+    return () => unsub();
+  }, []);
 
   // ========== QRIS COUNTDOWN TIMER ==========
   useEffect(() => {
@@ -307,7 +308,7 @@ export default function App() {
     }, 1000);
   };
 
-  const handleConfirmPayment = () => {
+  const handleConfirmPayment = async () => {
     if (!pendingBooking) return;
 
     const confirmedBooking = {
@@ -315,7 +316,7 @@ export default function App() {
       status: 'confirmed'
     };
 
-    setBookings((prev) => [confirmedBooking, ...prev]);
+    await createBooking(confirmedBooking);
     setPendingBooking(null);
     addToast('Pembayaran QRIS Sukses! Booking dikonfirmasi.', 'success');
 
@@ -331,11 +332,9 @@ export default function App() {
     addToast('Pemesanan dibatalkan.', 'info');
   };
 
-  const handleCancelBooking = (id) => {
+  const handleCancelBooking = async (id) => {
     if (!confirm('Yakin ingin membatalkan booking ini?')) return;
-    setBookings((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: 'cancelled' } : b))
-    );
+    await cancelBookingDb(id);
     addToast('Booking telah dibatalkan', 'info');
   };
 
