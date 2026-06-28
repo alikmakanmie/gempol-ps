@@ -44,9 +44,16 @@ const getTodayStr = () => {
 
 export default function App() {
   // ========== STATES ==========
+  const [demoMode, setDemoMode] = useState(() => localStorage.getItem('ps_demo_mode') !== 'false');
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [selectedSlots, setSelectedSlots] = useState([]);
-  const [bookings, setBookings] = useState([]);
+  const [bookings, setBookings] = useState(() => {
+    if (demoMode) {
+      const saved = localStorage.getItem('ps_bookings_v3');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
   
   const [pendingBooking, setPendingBooking] = useState(null);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
@@ -70,13 +77,28 @@ export default function App() {
   const [activeNav, setActiveNav] = useState('hero');
   const [particles, setParticles] = useState([]);
 
-  // ========== FIRESTORE REAL-TIME SYNC ==========
+  // ========== DATA SYNC ==========
   useEffect(() => {
+    localStorage.setItem('ps_demo_mode', demoMode);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode) {
+      const saved = localStorage.getItem('ps_bookings_v3');
+      if (saved) setBookings(JSON.parse(saved));
+      return;
+    }
     const unsub = subscribeBookings((data) => {
       setBookings(data);
     });
     return () => unsub();
-  }, []);
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode) {
+      localStorage.setItem('ps_bookings_v3', JSON.stringify(bookings));
+    }
+  }, [demoMode, bookings]);
 
   // ========== QRIS COUNTDOWN TIMER ==========
   useEffect(() => {
@@ -316,15 +338,28 @@ export default function App() {
       status: 'confirmed'
     };
 
-    await createBooking(confirmedBooking);
-    setPendingBooking(null);
-    addToast('Pembayaran QRIS Sukses! Booking dikonfirmasi.', 'success');
+    if (demoMode) {
+      setBookings((prev) => [confirmedBooking, ...prev]);
+      setPendingBooking(null);
+      addToast('Pembayaran QRIS Sukses! (Demo)', 'success');
+      setCustomerName('');
+      setCustomerPhone('');
+      setSelectedSlots([]);
+      setSelectedRoom(null);
+      return;
+    }
 
-    // Reset Form and Selection
-    setCustomerName('');
-    setCustomerPhone('');
-    setSelectedSlots([]);
-    setSelectedRoom(null);
+    try {
+      await createBooking(confirmedBooking);
+      setPendingBooking(null);
+      addToast('Pembayaran QRIS Sukses! Booking dikonfirmasi.', 'success');
+      setCustomerName('');
+      setCustomerPhone('');
+      setSelectedSlots([]);
+      setSelectedRoom(null);
+    } catch {
+      addToast('Gagal menyimpan booking. Pastikan server backend berjalan!', 'error');
+    }
   };
 
   const handleCancelPayment = () => {
@@ -334,8 +369,19 @@ export default function App() {
 
   const handleCancelBooking = async (id) => {
     if (!confirm('Yakin ingin membatalkan booking ini?')) return;
-    await cancelBookingDb(id);
-    addToast('Booking telah dibatalkan', 'info');
+    if (demoMode) {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, status: 'cancelled' } : b))
+      );
+      addToast('Booking telah dibatalkan (Demo)', 'info');
+      return;
+    }
+    try {
+      await cancelBookingDb(id);
+      addToast('Booking telah dibatalkan', 'info');
+    } catch {
+      addToast('Gagal membatalkan. Pastikan server backend berjalan!', 'error');
+    }
   };
 
   const handleAdminLogin = (e) => {
@@ -761,6 +807,7 @@ export default function App() {
           <a onClick={() => scrollToSection('hero')} className="nav-logo" style={{ cursor: 'pointer' }}>
             <span className="logo-icon">🎮</span>
             <span className="logo-text">GEMPOL PS</span>
+            {demoMode && <span className="demo-badge">DEMO</span>}
           </a>
 
           <ul className={`nav-links ${mobileMenuOpen ? 'open' : ''}`}>
@@ -1141,6 +1188,9 @@ export default function App() {
           </div>
           <div className="footer-bottom">
             &copy; {new Date().getFullYear()} Gempol Playstation Jogja
+            <span className={`footer-demo-toggle ${demoMode ? 'demo' : ''}`} onClick={() => setDemoMode(!demoMode)}>
+              {demoMode ? '🎯 Demo Mode' : '🔴 Live Mode'}
+            </span>
             <span className="footer-admin-link" onClick={() => setShowAdmin(true)}>Admin</span>
           </div>
         </div>
@@ -1170,7 +1220,7 @@ export default function App() {
                   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
                 })()}
               </div>
-              <p className="qris-hint">Scan barcode untuk membayar via QRIS</p>
+              <p className="qris-hint">{demoMode ? 'Mode Demo: Klik konfirmasi untuk simulasi pembayaran' : 'Scan barcode untuk membayar via QRIS'}</p>
             </div>
 
             <div className="qris-actions">

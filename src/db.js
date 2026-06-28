@@ -18,7 +18,9 @@ export function subscribeBookings(callback) {
   s.on('bookings', (data) => {
     callback(data);
   });
-  return () => {};
+  return () => {
+    s.off('bookings');
+  };
 }
 
 export async function createBooking(booking) {

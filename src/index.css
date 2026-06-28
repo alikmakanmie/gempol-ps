@@ -1577,6 +1577,39 @@ a {
   color: var(--cyan);
 }
 
+.footer-demo-toggle {
+  margin-left: 1rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 74, 90, 0.15);
+  color: var(--red);
+  font-weight: 600;
+  transition: var(--transition-fast);
+}
+
+.footer-demo-toggle.demo {
+  background: rgba(0, 184, 99, 0.15);
+  color: var(--green);
+}
+
+.footer-demo-toggle:hover {
+  opacity: 0.8;
+}
+
+.demo-badge {
+  font-size: 0.55rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--green), #00b863);
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 6px;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+
 .admin-login-wrapper {
   min-height: 100vh;
   display: flex;
