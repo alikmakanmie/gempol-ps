@@ -1,43 +1,38 @@
-import { db } from './firebase';
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-  getDocs,
-  where,
-} from 'firebase/firestore';
+import { io } from 'socket.io-client';
 
-const BOOKINGS_COL = 'bookings';
+const API = import.meta.env.VITE_API_URL || '';
+
+let socket;
+
+function getSocket() {
+  if (!socket) {
+    socket = io(API || undefined, {
+      transports: ['websocket', 'polling'],
+    });
+  }
+  return socket;
+}
 
 export function subscribeBookings(callback) {
-  const q = query(collection(db, BOOKINGS_COL), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const bookings = snapshot.docs.map((d) => {
-      const data = d.data();
-      return { ...data, id: data.bookingId || d.id };
-    });
-    callback(bookings);
-  }, (err) => {
-    console.error('Firestore error:', err);
+  const s = getSocket();
+  s.on('bookings', (data) => {
+    callback(data);
   });
+  return () => {};
 }
 
 export async function createBooking(booking) {
-  const docRef = await addDoc(collection(db, BOOKINGS_COL), {
-    ...booking,
-    bookingId: booking.id,
+  const res = await fetch(`${API}/api/bookings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(booking),
   });
-  return docRef.id;
+  return res.json();
 }
 
 export async function cancelBooking(bookingId) {
-  const q = query(collection(db, BOOKINGS_COL), where('bookingId', '==', bookingId));
-  const snapshot = await getDocs(q);
-  if (!snapshot.empty) {
-    await updateDoc(doc(db, BOOKINGS_COL, snapshot.docs[0].id), { status: 'cancelled' });
-  }
+  const res = await fetch(`${API}/api/bookings/${encodeURIComponent(bookingId)}/cancel`, {
+    method: 'PATCH',
+  });
+  return res.json();
 }
